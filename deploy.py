@@ -1,67 +1,71 @@
+import streamlit as st
+import pandas as pd
 import numpy as np
 import pickle
-import streamlit as st
 
 # Load the trained model
-loaded_model = pickle.load(open("trained_model.sav", 'rb'))
+with open("trained_model.sav", "rb") as f:
+    model = pickle.load(f)
 
-# Prediction function
-def heartdisease_prediction(input_data):
-    try:
-        # Convert input to numpy array
-        input_data_as_numpy_array = np.asarray(input_data, dtype=float)
-        input_data_reshaped = input_data_as_numpy_array.reshape(1, -1)
+# Title
+st.markdown("<h1 style='text-align: center; color: red;'>❤️ Heart Disease Prediction App</h1>", unsafe_allow_html=True)
+st.markdown("This app predicts whether a person is at risk of heart disease based on health parameters.")
 
-        prediction = loaded_model.predict(input_data_reshaped)
+# Sidebar info
+st.sidebar.title("About")
+st.sidebar.info("Built using Streamlit\n\nModel: Machine Learning\n\nDemo project")
 
-        if prediction[0] == 0:
-            return '✅ The person does NOT have heart disease.'
-        else:
-            return '⚠️ The person HAS heart disease.'
-    except Exception as e:
-        return f"Error in prediction: {e}"
+# Input form
+st.header("🧾 Enter Patient Details")
 
-# Main function for Streamlit
-def main():
-    st.set_page_config(page_title="Heart Disease Prediction", layout="centered")
-    st.title("❤️ Heart Disease Prediction Web App")
+def user_input_features():
+    age = st.number_input("Age", 1, 120, 45)
+    sex = st.selectbox("Sex", ['Male', 'Female'])
+    cp = st.selectbox("Chest Pain Type (cp)", [0, 1, 2, 3])
+    trestbps = st.number_input("Resting Blood Pressure (trestbps)", 80, 200, 120)
+    chol = st.number_input("Serum Cholesterol (chol)", 100, 400, 200)
+    fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl (fbs)", [0, 1])
+    restecg = st.selectbox("Resting ECG (restecg)", [0, 1, 2])
+    thalach = st.number_input("Max Heart Rate Achieved (thalach)", 70, 210, 150)
+    exang = st.selectbox("Exercise Induced Angina (exang)", [0, 1])
+    oldpeak = st.number_input("ST depression (oldpeak)", 0.0, 6.0, 1.0, step=0.1)
+    slope = st.selectbox("Slope of ST segment (slope)", [0, 1, 2])
+    ca = st.selectbox("Number of major vessels (ca)", [0, 1, 2, 3, 4])
+    thal = st.selectbox("Thalassemia (thal)", [0, 1, 2, 3])
 
-    st.markdown("Enter the following values to check heart disease risk:")
+    sex = 1 if sex == 'Male' else 0
 
-    # User input
-    age = st.number_input("Age", min_value=1)
-    sex = st.selectbox("Sex", ["0 = Female", "1 = Male"])
-    cp = st.number_input("Chest Pain Type (cp)", min_value=0, max_value=3)
-    trestbps = st.number_input("Resting Blood Pressure (trestbps)")
-    chol = st.number_input("Cholesterol")
-    fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl (fbs)", ["0 = False", "1 = True"])
-    restecg = st.number_input("Resting ECG Results (restecg)", min_value=0, max_value=2)
-    thalach = st.number_input("Max Heart Rate Achieved (thalach)")
-    exang = st.selectbox("Exercise Induced Angina (exang)", ["0 = No", "1 = Yes"])
-    oldpeak = st.number_input("ST depression (oldpeak)")
-    slope = st.number_input("Slope of the peak exercise ST segment", min_value=0, max_value=2)
-    ca = st.number_input("Number of major vessels (ca)", min_value=0, max_value=4)
-    thal = st.number_input("Thalassemia (thal)", min_value=0, max_value=3)
+    data = {
+        'age': age, 'sex': sex, 'cp': cp, 'trestbps': trestbps, 'chol': chol,
+        'fbs': fbs, 'restecg': restecg, 'thalach': thalach, 'exang': exang,
+        'oldpeak': oldpeak, 'slope': slope, 'ca': ca, 'thal': thal
+    }
+    features = pd.DataFrame([data])
+    return features
 
-    # Prepare for prediction
-    if st.button("🔍 Predict Heart Disease"):
-        features = [
-            age,
-            int(sex.split(" = ")[0]),
-            cp,
-            trestbps,
-            chol,
-            int(fbs.split(" = ")[0]),
-            restecg,
-            thalach,
-            int(exang.split(" = ")[0]),
-            oldpeak,
-            slope,
-            ca,
-            thal
-        ]
-        result = heartdisease_prediction(features)
-        st.success(result)
+input_df = user_input_features()
 
-if __name__ == '__main__':
-    main()
+if st.button("Predict"):
+    prediction = model.predict(input_df)[0]
+    result = "🔴 At Risk of Heart Disease" if prediction == 1 else "🟢 Not at Risk"
+    st.subheader("Prediction:")
+    st.success(result)
+
+# Bulk CSV upload
+st.header("📤 Upload CSV for Bulk Prediction")
+uploaded_file = st.file_uploader("Upload a CSV file with the same column format as the model", type="csv")
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    predictions = model.predict(df)
+    df['Prediction'] = np.where(predictions == 1, "At Risk", "Not at Risk")
+    st.write(df)
+
+    # Download option
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Results",
+        data=csv,
+        file_name='heart_disease_predictions.csv',
+        mime='text/csv',
+    )
